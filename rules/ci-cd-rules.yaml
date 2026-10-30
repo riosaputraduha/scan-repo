@@ -1,0 +1,82 @@
+rules:
+  - id: shai-hulud-deadman-marker
+    languages: [generic]
+    severity: ERROR
+    message: Penanda dead-man's switch Shai-Hulud
+    pattern-either:
+      - pattern: IfYouRevokeThisTokenItWillWipeTheComputerOfTheOwner
+      - pattern: git-tanstack.com
+      - pattern: opensearch_init.js
+      - pattern: thebeautifulmarchoftime
+      - pattern: thebeautifulsnadsoftime
+      - pattern: Shai-Hulud. Here We Go Again
+      - pattern: dependabot/github_actions/format/setup-formatter
+      - pattern: gh-token-monitor
+      - pattern: format-results.txt
+
+  - id: workflow-dumps-all-secrets
+    languages: [yaml]
+    severity: ERROR
+    message: Workflow menulis toJSON(secrets) ke file/artifact
+    pattern-regex: 'toJSON\(secrets\)'
+    paths:
+      include: [".github/workflows/*"]
+
+  - id: editor-agent-autorun-setup-mjs
+    languages: [json]
+    severity: ERROR
+    message: Hook Claude/VSCode menjalankan setup.mjs saat sesi/folder dibuka
+    pattern-regex: 'node \.(claude|vscode)/setup\.mjs'
+    paths:
+      include: [".claude/settings.json", ".vscode/tasks.json"]
+
+  - id: bun-spawn-bash-stdin
+    languages: [typescript, javascript]
+    severity: WARNING
+    message: Spawn bash -s dengan skrip dari stdin (pola installTokenMonitor)
+    pattern-regex: 'spawn\(\s*\[\s*"bash"\s*,\s*"-s"'
+
+  - id: ci-runner-memory-secret-scrape
+    languages: [generic]
+    severity: ERROR
+    message: Scraping secret Runner.Worker dari memori proses
+    pattern-regex: '"isSecret":\s*true'
+    paths:
+      include: ["*.ts", "*.js", "*.py", "*.sh", "*.yml"]
+
+  - id: bulk-credential-path-harvest
+    languages: [generic]
+    severity: WARNING
+    message: Banyak path kredensial dibaca sekaligus
+    patterns:
+      - pattern-regex: '(?s)(\.aws/credentials.*\.ssh/id.*\.npmrc|\.npmrc.*\.kube/config.*\.docker/config\.json)'
+
+  - id: npm-hook-injected-preinstall-bun
+    languages: [json]
+    severity: ERROR
+    message: preinstall mengunduh/menjalankan runtime asing di package.json
+    pattern-regex: '"(preinstall|postinstall)"\s*:\s*"[^"]*(bun|curl|wget|python3?|node)\s[^"]*"'
+    paths:
+      include: ["package.json"]
+
+  - id: sigstore-fulcio-rekor-provenance-abuse
+    languages: [generic]
+    severity: ERROR
+    message: Indikasi pembuatan provenance Sigstore kustom/eksternal dari script
+    pattern-either:
+      - pattern: fulcio.sigstore.dev
+      - pattern: rekor.sigstore.dev
+      - pattern: application/vnd.dev.sigstore.bundle.v0.3+json
+      - pattern: "audience=sigstore"
+
+  - id: cloud-secret-harvest-api
+    languages: [generic]
+    severity: ERROR
+    message: Panggilan langsung ke API SSM/SecretsManager/Vault/K8s tanpa SDK resmi
+    pattern-either:
+      - pattern: AmazonSSM.GetParameters
+      - pattern: secretsmanager.GetSecretValue
+      - pattern: /v1/auth/kubernetes/login
+      - pattern: /v1/auth/aws/login
+      - pattern: /api/v1/namespaces/
+      - pattern: /v1/sys/mounts

@@ -1,0 +1,84 @@
+- rule: CI Runner Process Memory Read Via Python
+  desc: python3 dijalankan sudo lalu membaca /proc/<pid>/mem proses Runner.Worker
+  condition: >
+    evt.type in (open, openat, openat2) and fd.name glob "/proc/*/mem"
+    and proc.name = python3 and proc.pname in (sudo, bash, sh)
+  output: "Baca memori proses via python (user=%user.name cmd=%proc.cmdline target=%fd.name)"
+  priority: CRITICAL
+
+- rule: Egress To Known Shai-Hulud C2
+  desc: Koneksi keluar ke domain C2 primer
+  condition: >
+    outbound and (fd.sip.name = "git-tanstack.com")
+  output: "Koneksi C2 (proc=%proc.name cmd=%proc.cmdline dest=%fd.name)"
+  priority: CRITICAL
+  # ponytail: fd.sip.name hanya terisi bila resolusi DNS terlihat Falco; cadangan: blok DNS di resolver/proxy.
+
+- rule: Cloud Metadata IMDS Access By Interpreter
+  desc: bun/node/python mengakses IP metadata AWS EC2 atau ECS
+  condition: >
+    outbound and proc.name in (bun, node, python3)
+    and (fd.rip in ("169.254.169.254", "169.254.170.2"))
+  output: "Akses metadata cloud dari runtime interpreter (proc=%proc.name dest=%fd.rip cmd=%proc.cmdline)"
+  priority: CRITICAL
+
+- rule: Kubernetes SA Token Read By Interpreter
+  desc: runtime JS membaca token/kunci service account Kubernetes
+  condition: >
+    open_read and proc.name in (bun, node)
+    and fd.name startswith "/var/run/secrets/kubernetes.io/serviceaccount/"
+  output: "K8s SA token dibaca oleh JS interpreter (proc=%proc.name file=%fd.name cmd=%proc.cmdline)"
+  priority: CRITICAL
+
+- rule: Vault Token Read By Interpreter
+  desc: bun/node membaca file token Vault di path umum
+  condition: >
+    open_read and proc.name in (bun, node)
+    and (fd.name endswith "/.vault-token" or fd.name contains "/vault/token"
+         or fd.name contains "/var/run/secrets/vault")
+  output: "Vault token dibaca oleh JS interpreter (proc=%proc.name file=%fd.name cmd=%proc.cmdline)"
+  priority: CRITICAL
+
+- rule: Bash Stdin Script Spawned By JS Runtime
+  desc: bun/node menjalankan bash -s (installTokenMonitor)
+  condition: >
+    spawned_process and proc.name = bash and proc.pname in (bun, node)
+    and proc.args startswith "-s --"
+  output: "bash -s dari runtime JS (parent=%proc.pname cmd=%proc.cmdline)"
+  priority: CRITICAL
+
+- rule: Workflow File Written By JS Runtime
+  desc: bun/node menulis .github/workflows atau file auto-run editor
+  condition: >
+    open_write and proc.name in (bun, node)
+    and (fd.name contains "/.github/workflows/" or fd.name endswith "/.claude/settings.json"
+         or fd.name endswith "/.vscode/tasks.json")
+  output: "Tulis file auto-run (proc=%proc.name file=%fd.name)"
+  priority: WARNING
+
+- rule: Token Monitor Persistence Files
+  desc: pembuatan unit/skrip gh-token-monitor
+  condition: >
+    open_write and (fd.name contains "gh-token-monitor"
+                    or fd.name contains "com.user.gh-token-monitor")
+  output: "Monitor token dibuat (proc=%proc.name file=%fd.name)"
+  priority: CRITICAL
+
+- rule: Mass Credential File Read By Interpreter
+  desc: Bun/node/python membaca banyak berkas kredensial berurutan
+  condition: >
+    open_read and proc.name in (bun, node, python3)
+    and (fd.name endswith "/.aws/credentials" or fd.name endswith "/.npmrc"
+         or fd.name endswith "/.git-credentials" or fd.name endswith "/.kube/config"
+         or fd.name contains "/.ssh/id_")
+  output: "Interpreter baca kredensial (proc=%proc.name file=%fd.name cmd=%proc.cmdline)"
+  priority: WARNING
+
+- rule: Persistence Unit Created By Interpreter
+  desc: systemd unit / LaunchAgent dibuat oleh runtime JS
+  condition: >
+    open_write and proc.name in (bun, node)
+    and (fd.name startswith "/etc/systemd/" or fd.name contains "/.config/systemd/user/"
+         or fd.name contains "/Library/LaunchAgents/")
+  output: "Persistensi dibuat (proc=%proc.name file=%fd.name)"
+  priority: CRITICAL
